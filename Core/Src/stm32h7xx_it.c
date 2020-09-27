@@ -23,6 +23,9 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "usart.h"
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -222,8 +225,24 @@ void TIM5_IRQHandler(void)
             LL_GPIO_ResetOutputPin(GPIOB, GPIO_BSRR_BS0); //LD1
             LL_GPIO_SetOutputPin(GPIOE, GPIO_BSRR_BS1); //LD2
         }
+
+        uint8_t tx_data[3];
+        tx_data[0] = 0x47 | 0x80;
+        tx_data[1] = 0;
+        tx_data[2] = 0x00;  // dummy
+        uint8_t rx_data[3];
+        LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
+        HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, 3, 1);
+        LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
+        int tmp = (signed short) ((((unsigned int) (rx_data[1] & 0xff)) << 8)
+                                   | ((unsigned int) (rx_data[2] & 0xff)));
+//        printf("%d, %d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2], tmp);
+        printf("aaa %d\r\n", tmp);
+
         LL_TIM_EnableCounter(TIM5);
         LL_TIM_EnableIT_UPDATE(TIM5);
+//        HAL_USART_Transmit(&huart3,(uint8_t *)msg,sizeof(msg),3000);
+//        return (uint16_t)rx_data[1];
     }
   /* USER CODE END TIM5_IRQn 0 */
   /* USER CODE BEGIN TIM5_IRQn 1 */

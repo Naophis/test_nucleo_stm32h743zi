@@ -114,6 +114,24 @@ uint16_t read2Byte(uint8_t reg)
     printf("%d, %d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2], tmp);
     return (uint16_t)rx_data[1];
 }
+
+uint8_t g_tx_data[3];
+uint8_t g_rx_data[3];
+uint16_t read2Byte2(uint8_t reg)
+{
+    g_tx_data[0] = reg | 0x80;
+    g_tx_data[1] = 0;
+    g_tx_data[2] = 0x00;  // dummy
+    g_rx_data[0] = g_rx_data[1] = g_rx_data[2] =0;
+
+    HAL_SPI_Transmit_IT(&hspi4, g_tx_data, 3);
+    HAL_SPI_Receive_IT(&hspi4, g_rx_data, 3);
+
+    auto tmp = (signed short) ((((unsigned int) (g_rx_data[1] & 0xff)) << 8)
+                               | ((unsigned int) (g_rx_data[2] & 0xff)));
+    printf("   %d, %d, %d, %d\r\n", g_rx_data[0], g_rx_data[1], g_rx_data[2], tmp);
+    return (uint16_t)rx_data[1];
+}
 float mpu6500_read_gyro_z( void )
 {
     int16_t gyro_z;
@@ -134,6 +152,23 @@ void read_gyro() {
 
     LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
     HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, LEN, 1);
+    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
+    printf("%d, %d, %d\r\n", tx_data[0], tx_data[1], tx_data[2]);
+    printf("%d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2]);
+}
+
+void read_gyro2() {
+
+    uint8_t rx_data[LEN];
+    uint8_t tx_data[LEN];
+    // H:8bit shift, Link h and l
+    tx_data[0] = 0x47 | 0x80;
+    tx_data[1] = 0x00;  // dummy
+    tx_data[2] = 0x00;  // dummy
+
+    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
+    HAL_SPI_Transmit(&hspi4, &tx_data, 3, 100);//Select reg
+    HAL_SPI_Receive(&hspi4, &rx_data, 3, 100);//Read data
     LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
     printf("%d, %d, %d\r\n", tx_data[0], tx_data[1], tx_data[2]);
     printf("%d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2]);
@@ -179,6 +214,7 @@ int main(void)
     LL_TIM_EnableCounter(TIM5);
     LL_TIM_EnableIT_UPDATE(TIM5);
     auto res = HAL_SPI_Init(&hspi4);
+    HAL_SPI_IRQHandler(&hspi4);
     LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
     setbuf(stdout, NULL);
     printf("who am i = %d\r\n", readByte(0x75));
@@ -191,7 +227,7 @@ int main(void)
     LL_mDelay(10);
     writeByte(0x1B, 0x18);
     LL_mDelay(10);
-    /* USER CODE END 2 */
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -212,9 +248,8 @@ int main(void)
       snprintf(char_buf, 256, "hello world btn state = %d, %d, %f, %d, %d\r\n", (int)state, res, mpu6500_read_gyro_z(), high, low);
 //      snprintf(char_buf, 256, "hello world btn state = %d, %d, %f\r\n", (int)state, res, readByte(0x47));
       printf("\r\n%s",char_buf);
-
-//      float gyro_z = (float) (((read1Byte(0x47)) << 8) & 0xff00) | (read1Byte(0x48)&0xff));
-      float gyro_z = read2Byte(0x47);
+//      float gyro_z = read2Byte(0x47);
+//      float gyro_z2 = read2Byte2(0x47);
 
       LL_mDelay(100);
   }
@@ -293,6 +328,21 @@ void USART_TransmitByte(uint8_t ch){
 }
 void __io_putchar(uint8_t ch){
     USART_TransmitByte(ch);
+}
+void HAL_SPI_TxCpltCallback (SPI_HandleTypeDef *hspi){
+  printf("tx callback\r\n");
+
+  LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
+}
+void HAL_SPI_RxCpltCallback (SPI_HandleTypeDef *hspi){
+  printf("rx callback\r\n");
+
+  LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
+
+    auto tmp = (signed short) ((((unsigned int) (g_rx_data[1] & 0xff)) << 8)
+                               | ((unsigned int) (g_rx_data[2] & 0xff)));
+    printf("   %d, %d, %d, %d\r\n", g_rx_data[0], g_rx_data[1], g_rx_data[2], tmp);
+
 }
 
 /* USER CODE END 4 */
