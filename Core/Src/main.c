@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include "stm32h7xx_it.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -143,35 +144,33 @@ float mpu6500_read_gyro_z( void )
 
 void read_gyro() {
 
-    uint8_t rx_data[LEN];
-    uint8_t tx_data[LEN];
-    // H:8bit shift, Link h and l
-    tx_data[0] = 0x47 | 0x80;
-    tx_data[1] = 0x00;  // dummy
-    tx_data[2] = 0x00;  // dummy
-
-    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
-    HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, LEN, 1);
-    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
-    printf("%d, %d, %d\r\n", tx_data[0], tx_data[1], tx_data[2]);
-    printf("%d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2]);
+//    uint8_t rx_data[LEN];
+//    uint8_t tx_data[LEN];
+//    // H:8bit shift, Link h and l
+//    tx_data[0] = 0x47 | 0x80;
+//    tx_data[1] = 0x00;  // dummy
+//    tx_data[2] = 0x00;  // dummy
+//    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
+//    HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, LEN, 1);
+//    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
+//    printf("%d, %d, %d\r\n", tx_data[0], tx_data[1], tx_data[2]);
 }
 
 void read_gyro2() {
 
-    uint8_t rx_data[LEN];
-    uint8_t tx_data[LEN];
-    // H:8bit shift, Link h and l
-    tx_data[0] = 0x47 | 0x80;
-    tx_data[1] = 0x00;  // dummy
-    tx_data[2] = 0x00;  // dummy
-
-    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
-    HAL_SPI_Transmit(&hspi4, &tx_data, 3, 100);//Select reg
-    HAL_SPI_Receive(&hspi4, &rx_data, 3, 100);//Read data
-    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
-    printf("%d, %d, %d\r\n", tx_data[0], tx_data[1], tx_data[2]);
-    printf("%d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2]);
+//    unsigned char rx_data[LEN];
+//    unsigned char tx_data[LEN];
+//    // H:8bit shift, Link h and l
+//    tx_data[0] = 0x47 | 0x80;
+//    tx_data[1] = 0x00;  // dummy
+//    tx_data[2] = 0x00;  // dummy
+//
+//    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
+////    HAL_SPI_Transmit(&hspi4, &tx_data, 3, 100);//Select reg
+////    HAL_SPI_Receive(&hspi4, &rx_data, 3, 100);//Read data
+//    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
+//    printf("%d, %d, %d\r\n", tx_data[0], tx_data[1], tx_data[2]);
+//    printf("%d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2]);
 }
 
 
@@ -209,10 +208,18 @@ int main(void)
   MX_USB_OTG_FS_PCD_Init();
   MX_TIM5_Init();
   MX_SPI4_Init();
+  MX_TIM1_Init();
+  MX_TIM2_Init();
+  MX_TIM3_Init();
+  MX_TIM15_Init();
   /* USER CODE BEGIN 2 */
 //    HAL_SPI_MspInit(&hspi4);
     LL_TIM_EnableCounter(TIM5);
     LL_TIM_EnableIT_UPDATE(TIM5);
+    LL_TIM_EnableCounter(TIM3);
+    LL_TIM_EnableIT_UPDATE(TIM3);
+    LL_TIM_EnableCounter(TIM15);
+    LL_TIM_EnableIT_UPDATE(TIM15);
     auto res = HAL_SPI_Init(&hspi4);
     HAL_SPI_IRQHandler(&hspi4);
     LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
@@ -227,6 +234,8 @@ int main(void)
     LL_mDelay(10);
     writeByte(0x1B, 0x18);
     LL_mDelay(10);
+//    HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+    LL_TIM_EnableCounter(TIM1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -245,13 +254,25 @@ int main(void)
       auto low = readByte(0x48) & 0xff;
       auto rx0_l = rx_data[0];
       auto rx1_l = rx_data[1];
-      snprintf(char_buf, 256, "hello world btn state = %d, %d, %f, %d, %d\r\n", (int)state, res, mpu6500_read_gyro_z(), high, low);
+//      snprintf(char_buf, 256, "hello world btn state = %d, %d, %f, %d, %d, %d\r\n", (int)state, res, mpu6500_read_gyro_z(), high, low, TIM1->CNT);
 //      snprintf(char_buf, 256, "hello world btn state = %d, %d, %f\r\n", (int)state, res, readByte(0x47));
-      printf("\r\n%s",char_buf);
-//      float gyro_z = read2Byte(0x47);
-//      float gyro_z2 = read2Byte2(0x47);
+//      printf("%s",char_buf);
+      t_SensorRawData sen_data = getSensorData();
 
-      LL_mDelay(100);
+//      printf("hello\r\n");
+      printf("enc(tim1) = %d  %d  %d  %d  %d  %d\r\n", sen_data.encoder.r, sen_data.gyro.rawdata[0], sen_data.gyro.rawdata[1],
+             sen_data.gyro.rawdata[2], sen_data.gyro.rawdata[3], sen_data.gyro.rawdata[4]);
+
+//      sen_data2.gyro.rawdata[0] = 1000;
+//      sen_data2.gyro.rawdata[1] = 1000;
+//      setSensorData(&sen_data2);
+//      sen_data = getSensorData();
+//
+//      printf("enc(tim2) = %d  %d\r\n", sen_data.encoder.r, sen_data.gyro.rawdata[1]);
+
+//      float gyro_z = read2Byte(0x47);
+
+      LL_mDelay(1);
   }
   /* USER CODE END 3 */
 }
@@ -326,6 +347,7 @@ void USART_TransmitByte(uint8_t ch){
     LL_USART_TransmitData8(USART3,ch);
     while(LL_USART_IsActiveFlag_TXE(USART3)==0);
 }
+
 void __io_putchar(uint8_t ch){
     USART_TransmitByte(ch);
 }

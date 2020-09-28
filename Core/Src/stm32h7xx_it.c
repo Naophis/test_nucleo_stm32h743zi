@@ -62,6 +62,9 @@
 extern SPI_HandleTypeDef hspi4;
 /* USER CODE BEGIN EV */
 int count=0;
+int gyro_c=0;
+int enc_tim1 = 0;
+t_SensorRawData sensor_raw;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -201,6 +204,41 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles TIM3 global interrupt.
+  */
+void TIM3_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM3_IRQn 0 */
+    if ( LL_TIM_IsActiveFlag_UPDATE(TIM3) == 1 ) {
+
+        LL_TIM_ClearFlag_UPDATE(TIM3);
+//        uint8_t tx_data[3];
+//        tx_data[0] = 0x47 | 0x80;
+//        tx_data[1] = 0;
+//        tx_data[2] = 0x00;  // dummy
+//        uint8_t rx_data[3];
+//        LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
+//        HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, 3, 1);
+//        LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
+//        int tmp_gyro = (signed short) ((((unsigned int) (rx_data[1] & 0xff)) << 8)
+//                                       | ((unsigned int) (rx_data[2] & 0xff)));
+//
+//        sensor_raw.gyro.rawdata[gyro_c] = tmp_gyro;
+//        gyro_c++;
+//        if (gyro_c == 5) {
+//            gyro_c = 0;
+//        }
+//
+//        LL_TIM_EnableCounter(TIM3);
+//        LL_TIM_EnableIT_UPDATE(TIM3);
+    }
+  /* USER CODE END TIM3_IRQn 0 */
+  /* USER CODE BEGIN TIM3_IRQn 1 */
+
+  /* USER CODE END TIM3_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM5 global interrupt.
   */
 void TIM5_IRQHandler(void)
@@ -226,18 +264,13 @@ void TIM5_IRQHandler(void)
             LL_GPIO_SetOutputPin(GPIOE, GPIO_BSRR_BS1); //LD2
         }
 
-        uint8_t tx_data[3];
-        tx_data[0] = 0x47 | 0x80;
-        tx_data[1] = 0;
-        tx_data[2] = 0x00;  // dummy
-        uint8_t rx_data[3];
-        LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
-        HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, 3, 1);
-        LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
-        int tmp = (signed short) ((((unsigned int) (rx_data[1] & 0xff)) << 8)
-                                   | ((unsigned int) (rx_data[2] & 0xff)));
-//        printf("%d, %d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2], tmp);
-        printf("aaa %d\r\n", tmp);
+        sensor_raw.encoder.r = LL_TIM_GetCounter(TIM1) - 30000;
+        enc_tim1 =  LL_TIM_GetCounter(TIM1) - 30000;
+        LL_TIM_SetCounter(TIM1,30000);
+
+//        printf("enc(tim1) = %d  %d  %d  %d  %d  %d\r\n", sensor_raw.encoder.r, sensor_raw.gyro.rawdata[0], sensor_raw.gyro.rawdata[1],
+//               sensor_raw.gyro.rawdata[2], sensor_raw.gyro.rawdata[3], sensor_raw.gyro.rawdata[4]);
+
 
         LL_TIM_EnableCounter(TIM5);
         LL_TIM_EnableIT_UPDATE(TIM5);
@@ -264,7 +297,52 @@ void SPI4_IRQHandler(void)
   /* USER CODE END SPI4_IRQn 1 */
 }
 
-/* USER CODE BEGIN 1 */
+/**
+  * @brief This function handles TIM15 global interrupt.
+  */
+void TIM15_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM15_IRQn 0 */
+    if ( LL_TIM_IsActiveFlag_UPDATE(TIM15) == 1 ) {
 
+        LL_TIM_ClearFlag_UPDATE(TIM15);
+        uint8_t tx_data[3];
+        tx_data[0] = 0x47 | 0x80;
+        tx_data[1] = 0;
+        tx_data[2] = 0x00;  // dummy
+        uint8_t rx_data[3];
+        LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
+        HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, 3, 1);
+        LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
+        int tmp_gyro = (signed short) ((((unsigned int) (rx_data[1] & 0xff)) << 8)
+                                       | ((unsigned int) (rx_data[2] & 0xff)));
+
+        sensor_raw.gyro.rawdata[gyro_c] = tmp_gyro;
+        gyro_c++;
+        if (gyro_c == 5) {
+            gyro_c = 0;
+        }
+
+        LL_TIM_EnableCounter(TIM15);
+        LL_TIM_EnableIT_UPDATE(TIM15);
+    }
+  /* USER CODE END TIM15_IRQn 0 */
+  /* USER CODE BEGIN TIM15_IRQn 1 */
+
+  /* USER CODE END TIM15_IRQn 1 */
+}
+
+/* USER CODE BEGIN 1 */
+int getEncTIM1(){
+    return enc_tim1;
+}
+
+t_SensorRawData getSensorData(){
+    return sensor_raw;
+}
+
+void setSensorData(const t_SensorRawData *tmp) {
+    sensor_raw.gyro.rawdata[1] = tmp->gyro.rawdata[1];
+}
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
