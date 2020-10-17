@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "i2c.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -31,6 +32,11 @@
 #include <string.h>
 #include <stdint.h>
 #include "stm32h7xx_it.h"
+#include "../../Drivers/api/inc/vl53l0x_api.h"
+#include "vl53l0x_calibration.h"
+//#include "vl53l0x/vl53l0x_class.h"
+#include "PhysicalBasement.h"
+//#include "../../Drivers/VL53L0X/core/inc/vl53l0x_api.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,6 +70,10 @@ void SystemClock_Config(void);
 uint8_t char_buf[256];
 uint8_t rx_data[2];
 uint8_t tx_data[2];
+uint8_t Message[64];
+uint8_t MessageLen;
+VL53L0X_Dev_t myDevStruct[3];
+VL53L0X_DEV myDev;
 void writeByte(uint8_t reg, uint8_t data)
 {
 
@@ -110,7 +120,7 @@ uint16_t read2Byte(uint8_t reg)
     LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
     HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, 3, 1);
     LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
-    auto tmp = (signed short) ((((unsigned int) (rx_data[1] & 0xff)) << 8)
+    signed short tmp = (signed short) ((((unsigned int) (rx_data[1] & 0xff)) << 8)
                                | ((unsigned int) (rx_data[2] & 0xff)));
     printf("%d, %d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2], tmp);
     return (uint16_t)rx_data[1];
@@ -140,39 +150,106 @@ float mpu6500_read_gyro_z( void )
 
     return omega;
 }
-#define LEN 3
+#define VL53L0X_MAX_STRING_LENGTH 32
 
-void read_gyro() {
-
-//    uint8_t rx_data[LEN];
-//    uint8_t tx_data[LEN];
-//    // H:8bit shift, Link h and l
-//    tx_data[0] = 0x47 | 0x80;
-//    tx_data[1] = 0x00;  // dummy
-//    tx_data[2] = 0x00;  // dummy
-//    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
-//    HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, LEN, 1);
-//    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
-//    printf("%d, %d, %d\r\n", tx_data[0], tx_data[1], tx_data[2]);
+void print_pal_error(VL53L0X_Error Status){
+    char buf[VL53L0X_MAX_STRING_LENGTH];
+    VL53L0X_GetPalErrorString(Status, buf);
+    printf("API Status: %i : %s\n", Status, buf);
 }
 
-void read_gyro2() {
+VL53L0X_Error rangingTest(VL53L0X_Dev_t *pMyDevice) {
+    VL53L0X_Error Status = VL53L0X_ERROR_NONE;
+    VL53L0X_RangingMeasurementData_t RangingMeasurementData;
+    int i;
+    FixPoint1616_t LimitCheckCurrent;
+    uint32_t refSpadCount;
+    uint8_t isApertureSpads;
+    uint8_t VhvSettings;
+    uint8_t PhaseCal;
 
-//    unsigned char rx_data[LEN];
-//    unsigned char tx_data[LEN];
-//    // H:8bit shift, Link h and l
-//    tx_data[0] = 0x47 | 0x80;
-//    tx_data[1] = 0x00;  // dummy
-//    tx_data[2] = 0x00;  // dummy
-//
-//    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
-////    HAL_SPI_Transmit(&hspi4, &tx_data, 3, 100);//Select reg
-////    HAL_SPI_Receive(&hspi4, &rx_data, 3, 100);//Read data
-//    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
-//    printf("%d, %d, %d\r\n", tx_data[0], tx_data[1], tx_data[2]);
-//    printf("%d, %d, %d\r\n", rx_data[0], rx_data[1], rx_data[2]);
+    if (Status == VL53L0X_ERROR_NONE) {
+        printf("Call of VL53L0X_StaticInit\n");
+        Status = VL53L0X_StaticInit(pMyDevice); // Device Initialization
+        print_pal_error(Status);
+    }
+
+    if (Status == VL53L0X_ERROR_NONE) {
+        printf("Call of VL53L0X_PerformRefCalibration\n");
+        Status = VL53L0X_PerformRefCalibration(pMyDevice,
+                                               &VhvSettings, &PhaseCal); // Device Initialization
+        print_pal_error(Status);
+    }
+
+    if (Status == VL53L0X_ERROR_NONE) // needed if a coverglass is used and no calibration has been performed
+    {
+        printf("Call of VL53L0X_PerformRefSpadManagement\n");
+        Status = VL53L0X_PerformRefSpadManagement(pMyDevice,
+                                                  &refSpadCount, &isApertureSpads); // Device Initialization
+        printf("refSpadCount = %d, isApertureSpads = %d\n", refSpadCount, isApertureSpads);
+        print_pal_error(Status);
+    }
+
+    if (Status == VL53L0X_ERROR_NONE) {
+
+        // no need to do this when we use VL53L0X_PerformSingleRangingMeasurement
+        printf("Call of VL53L0X_SetDeviceMode\n");
+        Status = VL53L0X_SetDeviceMode(pMyDevice, VL53L0X_DEVICEMODE_SINGLE_RANGING); // Setup in single ranging mode
+        print_pal_error(Status);
+    }
+
+    // Enable/Disable Sigma and Signal check
+    if (Status == VL53L0X_ERROR_NONE) {
+        Status = VL53L0X_SetLimitCheckEnable(pMyDevice,
+                                             VL53L0X_CHECKENABLE_SIGMA_FINAL_RANGE, 1);
+    }
+    if (Status == VL53L0X_ERROR_NONE) {
+        Status = VL53L0X_SetLimitCheckEnable(pMyDevice,
+                                             VL53L0X_CHECKENABLE_SIGNAL_RATE_FINAL_RANGE, 1);
+    }
+
+    if (Status == VL53L0X_ERROR_NONE) {
+        Status = VL53L0X_SetLimitCheckValue(pMyDevice,
+                                            VL53L0X_CHECKENABLE_SIGNAL_RATE_FINAL_RANGE,
+                                            (FixPoint1616_t) (0.25 * 65536));
+    }
+    if (Status == VL53L0X_ERROR_NONE) {
+        Status = VL53L0X_SetLimitCheckValue(pMyDevice,
+                                            VL53L0X_CHECKENABLE_SIGMA_FINAL_RANGE,
+                                            (FixPoint1616_t) (18 * 65536));
+    }
+    if (Status == VL53L0X_ERROR_NONE) {
+        Status = VL53L0X_SetMeasurementTimingBudgetMicroSeconds(pMyDevice,
+                                                                200000);
+    }
+    /*
+     *  Step  4 : Test ranging mode
+     */
+
+    if (Status == VL53L0X_ERROR_NONE) {
+        for (i = 0; i < 10; i++) {
+            printf("Call of VL53L0X_PerformSingleRangingMeasurement\n");
+            Status = VL53L0X_PerformSingleRangingMeasurement(pMyDevice,
+                                                             &RangingMeasurementData);
+
+//            print_pal_error(Status);
+//            print_range_status(&RangingMeasurementData);
+
+            VL53L0X_GetLimitCheckCurrent(pMyDevice,
+                                         VL53L0X_CHECKENABLE_RANGE_IGNORE_THRESHOLD, &LimitCheckCurrent);
+
+            printf("RANGE IGNORE THRESHOLD: %f\n\n", (float) LimitCheckCurrent / 65536.0);
+
+
+            if (Status != VL53L0X_ERROR_NONE) break;
+
+            printf("Measured distance: %i\n\n", RangingMeasurementData.RangeMilliMeter);
+
+
+        }
+    }
+    return Status;
 }
-
 
 /* USER CODE END 0 */
 
@@ -212,20 +289,40 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_TIM15_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
 //    HAL_SPI_MspInit(&hspi4);
-    LL_TIM_EnableCounter(TIM5);
-    LL_TIM_EnableIT_UPDATE(TIM5);
-    LL_TIM_EnableCounter(TIM3);
-    LL_TIM_EnableIT_UPDATE(TIM3);
-    LL_TIM_EnableCounter(TIM15);
-    LL_TIM_EnableIT_UPDATE(TIM15);
+
     auto res = HAL_SPI_Init(&hspi4);
     HAL_SPI_IRQHandler(&hspi4);
     LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
     setbuf(stdout, NULL);
     printf("who am i = %d\r\n", readByte(0x75));
 //    writeByte(0x6B, 0x80);
+//    VL53L0X_Start();
+//    vl53l0x_calibration();
+
+//    myDev = &myDevStruct[0];
+//    VL53L0X_StartMeasurement(myDev);
+//    VL53L0X_ClearInterruptMask(myDev, -1);
+//    HAL_Delay(1);
+    if (HAL_I2C_Init(&hi2c2) != HAL_OK){
+        printf("NG\r\n");
+    }else{
+        printf("OK\r\n");
+    }
+    LL_mDelay(1000);
+//    I2Cx_FORCE_RESET();
+//    HAL_I2C_Mem_Write(&hi2c2, 0x29, 0x6b, I2C_MEMADD_SIZE_8BIT, (uint8_t *) ret, 0x01, 100);
+    printf("%d\r\n",hi2c2.State);
+    LL_mDelay(1000);
+    VL53L0X_Dev_t MyDevice;
+    VL53L0X_Dev_t *pMyDevice = &MyDevice;
+    VL53L0X_Version_t Version;
+    VL53L0X_Version_t *pVersion = &Version;
+    VL53L0X_DeviceInfo_t DeviceInfo;
+    LL_mDelay(1000);
+
     writeByte(0x6B, 0x01);
     LL_mDelay(10);
     writeByte(0x1A, 0x00);
@@ -234,8 +331,24 @@ int main(void)
     LL_mDelay(10);
     writeByte(0x1B, 0x18);
     LL_mDelay(10);
-//    HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+
+    LL_TIM_EnableCounter(TIM5);
+    LL_TIM_EnableIT_UPDATE(TIM5);
+    LL_TIM_EnableCounter(TIM3);
+    LL_TIM_EnableIT_UPDATE(TIM3);
+    LL_TIM_EnableCounter(TIM15);
+    LL_TIM_EnableIT_UPDATE(TIM15);
+
     LL_TIM_EnableCounter(TIM1);
+    RT_MODEL_PhysicalBasement_T PhysicalBasement_M;
+    t_SensorData data;
+    real_T out1, out2;
+    data.light_sensor.right45 = 1000;
+    PhysicalBasement_step(&PhysicalBasement_M, &data, &out1, &out2);
+    printf("%f, %f \r\n",out1,out2);
+    LL_mDelay(3000);
+    // Enable/Disable Sigma and Signal check
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -247,32 +360,19 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
       setbuf(stdout, NULL);
-      uint32_t state = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_13);
-      auto high = readByte(0x47) & 0xff;
-      auto rx0_h = rx_data[0];
-      auto rx1_h = rx_data[1];
-      auto low = readByte(0x48) & 0xff;
-      auto rx0_l = rx_data[0];
-      auto rx1_l = rx_data[1];
-//      snprintf(char_buf, 256, "hello world btn state = %d, %d, %f, %d, %d, %d\r\n", (int)state, res, mpu6500_read_gyro_z(), high, low, TIM1->CNT);
-//      snprintf(char_buf, 256, "hello world btn state = %d, %d, %f\r\n", (int)state, res, readByte(0x47));
-//      printf("%s",char_buf);
       t_SensorRawData sen_data = getSensorData();
+//      get_tof();
+//      uint32_t distance;
+//      int status=VL53L0X_GetDistance(&sensor1, &distance);
+//      printf("%d %d\r\n",status, distance);
+      printf("enc(tim1) = %d  %d  %d  %d  %d  %d  %d\r\n", sen_data.encoder.r, sen_data.gyro.rawdata[0], sen_data.gyro.rawdata[1],
+             sen_data.gyro.rawdata[2], sen_data.gyro.rawdata[3], sen_data.gyro.rawdata[4],sen_data.dist);
+//      MessageLen = sprintf((char *) Message, "Measured distance: %i\n\r", RangingData.RangeMilliMeter);
+//      printf("%s\r\n", MessageLen);
+//      HAL_UART_Transmit(&huart2, Message, MessageLen, 100);
+//      TofDataRead = 0;
 
-//      printf("hello\r\n");
-      printf("enc(tim1) = %d  %d  %d  %d  %d  %d\r\n", sen_data.encoder.r, sen_data.gyro.rawdata[0], sen_data.gyro.rawdata[1],
-             sen_data.gyro.rawdata[2], sen_data.gyro.rawdata[3], sen_data.gyro.rawdata[4]);
-
-//      sen_data2.gyro.rawdata[0] = 1000;
-//      sen_data2.gyro.rawdata[1] = 1000;
-//      setSensorData(&sen_data2);
-//      sen_data = getSensorData();
-//
-//      printf("enc(tim2) = %d  %d\r\n", sen_data.encoder.r, sen_data.gyro.rawdata[1]);
-
-//      float gyro_z = read2Byte(0x47);
-
-      LL_mDelay(1);
+      LL_mDelay(10);
   }
   /* USER CODE END 3 */
 }
@@ -337,6 +437,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+  LL_RCC_SetI2CClockSource(LL_RCC_I2C123_CLKSOURCE_PCLK1);
   LL_RCC_SetSPIClockSource(LL_RCC_SPI45_CLKSOURCE_PCLK2);
   LL_RCC_SetUSARTClockSource(LL_RCC_USART234578_CLKSOURCE_PCLK1);
   LL_RCC_SetUSBClockSource(LL_RCC_USB_CLKSOURCE_HSI48);

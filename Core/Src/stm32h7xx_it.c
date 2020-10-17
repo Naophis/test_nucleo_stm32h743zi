@@ -26,6 +26,7 @@
 #include "usart.h"
 #include <stdio.h>
 #include <string.h>
+//#include "vl53l0x/vl53l0x_class.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,12 +60,16 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern I2C_HandleTypeDef hi2c2;
 extern SPI_HandleTypeDef hspi4;
 /* USER CODE BEGIN EV */
 int count=0;
 int gyro_c=0;
 int enc_tim1 = 0;
 t_SensorRawData sensor_raw;
+//VL53L0X_Dev_t sensor1;
+int sensor1_flag = 1;
+
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -94,6 +99,8 @@ void HardFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+    printf("Error_HardFault");
+    return ;
     /* USER CODE END W1_HardFault_IRQn 0 */
   }
 }
@@ -210,32 +217,46 @@ void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
     if ( LL_TIM_IsActiveFlag_UPDATE(TIM3) == 1 ) {
-
         LL_TIM_ClearFlag_UPDATE(TIM3);
-//        uint8_t tx_data[3];
-//        tx_data[0] = 0x47 | 0x80;
-//        tx_data[1] = 0;
-//        tx_data[2] = 0x00;  // dummy
-//        uint8_t rx_data[3];
-//        LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3);
-//        HAL_SPI_TransmitReceive(&hspi4, tx_data, rx_data, 3, 1);
-//        LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_3);
-//        int tmp_gyro = (signed short) ((((unsigned int) (rx_data[1] & 0xff)) << 8)
-//                                       | ((unsigned int) (rx_data[2] & 0xff)));
-//
-//        sensor_raw.gyro.rawdata[gyro_c] = tmp_gyro;
-//        gyro_c++;
-//        if (gyro_c == 5) {
-//            gyro_c = 0;
-//        }
-//
+//        uint32_t distance;
+//        int status=VL53L0X_GetDistance(&sensor1, &distance);
+//        printf("%d %d\r\n",status, distance);
+//        sensor_raw.dist = distance;
 //        LL_TIM_EnableCounter(TIM3);
-//        LL_TIM_EnableIT_UPDATE(TIM3);
+        LL_TIM_EnableIT_UPDATE(TIM3);
     }
   /* USER CODE END TIM3_IRQn 0 */
   /* USER CODE BEGIN TIM3_IRQn 1 */
 
   /* USER CODE END TIM3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles I2C2 event interrupt.
+  */
+void I2C2_EV_IRQHandler(void)
+{
+  /* USER CODE BEGIN I2C2_EV_IRQn 0 */
+
+  /* USER CODE END I2C2_EV_IRQn 0 */
+  HAL_I2C_EV_IRQHandler(&hi2c2);
+  /* USER CODE BEGIN I2C2_EV_IRQn 1 */
+
+  /* USER CODE END I2C2_EV_IRQn 1 */
+}
+
+/**
+  * @brief This function handles I2C2 error interrupt.
+  */
+void I2C2_ER_IRQHandler(void)
+{
+  /* USER CODE BEGIN I2C2_ER_IRQn 0 */
+
+  /* USER CODE END I2C2_ER_IRQn 0 */
+  HAL_I2C_ER_IRQHandler(&hi2c2);
+  /* USER CODE BEGIN I2C2_ER_IRQn 1 */
+
+  /* USER CODE END I2C2_ER_IRQn 1 */
 }
 
 /**
@@ -248,9 +269,9 @@ void TIM5_IRQHandler(void)
         LL_TIM_ClearFlag_UPDATE(TIM5);
         /* 割り込み処理を入れる */
         count++;
-        if (count == 1000) {
+        if (count == 500) {
             LL_GPIO_SetOutputPin(GPIOB, GPIO_BSRR_BS14);
-        } else if (count == 2000) {
+        } else if (count == 1000) {
             LL_GPIO_ResetOutputPin(GPIOB, GPIO_BSRR_BS14);
             count = 1;
         }
@@ -263,7 +284,7 @@ void TIM5_IRQHandler(void)
             LL_GPIO_ResetOutputPin(GPIOB, GPIO_BSRR_BS0); //LD1
             LL_GPIO_SetOutputPin(GPIOE, GPIO_BSRR_BS1); //LD2
         }
-
+        uint32_t distance;
         sensor_raw.encoder.r = LL_TIM_GetCounter(TIM1) - 30000;
         enc_tim1 =  LL_TIM_GetCounter(TIM1) - 30000;
         LL_TIM_SetCounter(TIM1,30000);
@@ -272,7 +293,7 @@ void TIM5_IRQHandler(void)
 //               sensor_raw.gyro.rawdata[2], sensor_raw.gyro.rawdata[3], sensor_raw.gyro.rawdata[4]);
 
 
-        LL_TIM_EnableCounter(TIM5);
+//        LL_TIM_EnableCounter(TIM5);
         LL_TIM_EnableIT_UPDATE(TIM5);
 //        HAL_USART_Transmit(&huart3,(uint8_t *)msg,sizeof(msg),3000);
 //        return (uint16_t)rx_data[1];
@@ -323,7 +344,7 @@ void TIM15_IRQHandler(void)
             gyro_c = 0;
         }
 
-        LL_TIM_EnableCounter(TIM15);
+//        LL_TIM_EnableCounter(TIM15);
         LL_TIM_EnableIT_UPDATE(TIM15);
     }
   /* USER CODE END TIM15_IRQn 0 */
@@ -343,6 +364,29 @@ t_SensorRawData getSensorData(){
 
 void setSensorData(const t_SensorRawData *tmp) {
     sensor_raw.gyro.rawdata[1] = tmp->gyro.rawdata[1];
+}
+
+//VL53L0X_Dev_t* getVL53L0Xinstance(){
+//    return &sensor1;
+//}
+
+void VL53L0X_Start() {
+//    sensor1.I2cDevAddr = 0x29; // ADDRESS_DEFAULT;
+//    sensor1.comms_type = 1;    // VL53L0X_COMMS_I2C
+//    sensor1.comms_speed_khz = 100;
+//    if (!VL53L0X_InitSensor(&sensor1,
+//                            VL53L0x_DEFAULT_DEVICE_ADDRESS)) {
+//        //attempt to initialise it with the necessary settings for normal operation. Returns 0 if fail, 1 if success.
+//        printf("Failed to initialize\r\n");
+//    } else {
+//        printf("Successfully initialized\r\n");
+//    }
+}
+void get_tof(){
+//    uint32_t distance;
+//    int status=VL53L0X_GetDistance(&sensor1, &distance);
+//    printf("%d %d\r\n",status, distance);
+//    sensor_raw.dist = distance;
 }
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

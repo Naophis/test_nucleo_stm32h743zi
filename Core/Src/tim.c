@@ -131,9 +131,9 @@ void MX_TIM3_Init(void)
   NVIC_SetPriority(TIM3_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
   NVIC_EnableIRQ(TIM3_IRQn);
 
-  TIM_InitStruct.Prescaler = 99;
+  TIM_InitStruct.Prescaler = 239;
   TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
-  TIM_InitStruct.Autoreload = 299;
+  TIM_InitStruct.Autoreload = 249;
   TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
   LL_TIM_Init(TIM3, &TIM_InitStruct);
   LL_TIM_DisableARRPreload(TIM3);
@@ -154,9 +154,9 @@ void MX_TIM5_Init(void)
   NVIC_SetPriority(TIM5_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),14, 0));
   NVIC_EnableIRQ(TIM5_IRQn);
 
-  TIM_InitStruct.Prescaler = 99;
+  TIM_InitStruct.Prescaler = 239;
   TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
-  TIM_InitStruct.Autoreload = 299;
+  TIM_InitStruct.Autoreload = 249;
   TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
   LL_TIM_Init(TIM5, &TIM_InitStruct);
   LL_TIM_DisableARRPreload(TIM5);
@@ -177,9 +177,9 @@ void MX_TIM15_Init(void)
   NVIC_SetPriority(TIM15_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
   NVIC_EnableIRQ(TIM15_IRQn);
 
-  TIM_InitStruct.Prescaler = 99;
+  TIM_InitStruct.Prescaler = 239;
   TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
-  TIM_InitStruct.Autoreload = 74;
+  TIM_InitStruct.Autoreload = 49;
   TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
   TIM_InitStruct.RepetitionCounter = 0;
   LL_TIM_Init(TIM15, &TIM_InitStruct);

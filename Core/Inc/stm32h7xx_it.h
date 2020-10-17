@@ -28,7 +28,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+//#include "vl53l0x/vl53l0x_class.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -57,6 +57,8 @@ void DebugMon_Handler(void);
 void PendSV_Handler(void);
 void SysTick_Handler(void);
 void TIM3_IRQHandler(void);
+void I2C2_EV_IRQHandler(void);
+void I2C2_ER_IRQHandler(void);
 void TIM5_IRQHandler(void);
 void SPI4_IRQHandler(void);
 void TIM15_IRQHandler(void);
@@ -75,10 +77,14 @@ typedef struct {
 typedef struct {
     t_EncoderData encoder;
     t_GyroData gyro;
+    int32_t dist;
 } t_SensorRawData;
 
 t_SensorRawData getSensorData();
 void setSensorData(const t_SensorRawData *tmp);
+//VL53L0X_Dev_t* getVL53L0Xinstance();
+void VL53L0X_Start();
+void get_tof();
 /* USER CODE END EFP */
 
 #ifdef __cplusplus
